@@ -39,13 +39,21 @@ proc {AddLocal X Env Statement}
 end   
 
 proc {HandleCondition X S1 S2 Env}
-   if {RetrieveFromSAS Env.X} == literal(true) then
-      {Push semstate(statement:S1 environment:Env)}
-   else
-      if {RetrieveFromSAS Env.X} == literal(false) then
-	 {Push semstate(statement:S2 environment:Env)}
+   local Condition in
+      case X
+      of ident(Var) then
+	 Condition = {RetrieveFromSAS Env.Var}
       else
-	 raise illFormedStatement(X) end
+	 Condition = X
+      end
+      if Condition == literal(true) then
+	 {Push semstate(statement:S1 environment:Env)}
+      else
+	 if Condition == literal(false) then
+	    {Push semstate(statement:S2 environment:Env)}
+	 else
+	    raise illFormedStatement(X) end
+	 end
       end
    end
 end
@@ -96,12 +104,18 @@ end
 proc {ApplyProc X Args Env}
    local DeclareBind NewEnv Procedure in
       fun {DeclareBind FormalParams ActualParams CalleeEnv CallerEnv}
-	 case FormalParams#ActualParams
+	 case '#'(FormalParams ActualParams)
 	 of nil#nil then CalleeEnv
-	 [] ident(Var)|Formalr#Actual|Actualr then
+	 [] '#'(ident(Var)|Formalr ident(Actual)|Actualr) then
 	    local NewEnv in
 	       {AdjoinAt CalleeEnv Var {AddKeyToSas} NewEnv}
 	       {Unify ident(Var) {RetrieveFromSAS CallerEnv.Actual} NewEnv}
+	       {DeclareBind Formalr Actualr NewEnv CallerEnv}
+	    end
+	 [] '#'(ident(Var)|Formalr Actual|Actualr) then
+	    local NewEnv in
+	       {AdjoinAt CalleeEnv Var {AddKeyToSas} NewEnv}
+	       {Unify ident(Var) Actual NewEnv}
 	       {DeclareBind Formalr Actualr NewEnv CallerEnv}
 	    end
 	 else
@@ -109,7 +123,7 @@ proc {ApplyProc X Args Env}
 	 end
       end
       Procedure = {RetrieveFromSAS Env.X}
-      NewEnv = {DeclareBind Procedure.arguments Args Procedure.environment Env}
+      NewEnv = {DeclareBind Procedure.argument Args Procedure.environment Env}
       {Push semstate(statement:Procedure.statement environment:NewEnv)}
    end
 end
@@ -136,7 +150,7 @@ proc {Interpret AST}
 	    [] [match X Pattern S1 S2] then
 	       {HandleCase X Pattern S1 S2 @Tmp.environment}
 	       {Recurse}
-	    [] apply|X|Args then
+	    [] apply|ident(X)|Args then
 	       {ApplyProc X Args @Tmp.environment}
 	       {Recurse}
 	    [] X|Xr then
@@ -144,8 +158,9 @@ proc {Interpret AST}
 		  {Push semstate(statement:Xr environment:@Tmp.environment)}
 	       else skip
 	       end
+	       {Push semstate(statement:X environment:@Tmp.environment)}
+	       {Recurse}
 	    end
-	    {Recurse}
 	 else {Browse 'Done!'}
 	 end
       end
@@ -154,10 +169,24 @@ proc {Interpret AST}
 end
 
 %{Interpret [[nop] [nop] [nop]]}
-%{Interpret [[localvar ident(x)
-%	    [localvar ident(y)
-%	     [localvar ident(x)
-%	      [nop]]]]]}
+
+{Interpret [
+	    [localvar ident(x)
+	     [localvar ident(y)
+	      [localvar ident(z)
+	       [
+		[nop]
+		[bind ident(y) literal(a)]
+		%[bind ident(x) [record ident(y) [[literal(f1) literal(a)] [ident(y) literal(v1)]]]]
+		%[conditional ident(y) [bind ident(z) literal(true)] [bind ident(z) literal(false)]]
+		%[match ident(x) [record literal(a) [[literal(f1) ident(y)] [literal(a) literal(v2)]]] [nop] [bind ident(z) literal(false)]]
+		[bind ident(x) [procedure [ident(a) ident(b)] [[bind ident(b) literal(procedure)] [nop]]]]
+		[apply ident(x) literal(1) literal(procedure)]
+	       ]
+	      ]
+	     ]
+	    ]
+	   ]}
 
 %{Interpret [[localvar ident(x)
 %	[[nop]  [localvar ident(y)[[bind ident(x) ident(y)] [localvar ident(x)[nop]]]]]]]}
@@ -165,3 +194,13 @@ end
 %{Interpret [[localvar ident(x)[localvar ident(y)[[bind ident(x) [record literal(a)
 %[[literal(feature1) literal(10)]]]]]]]]}
 
+
+local A B C in
+   A = [1 2 3]
+   B = [a b c]
+   case '#'(A B)
+   of '#'(X|Xr Y|Yr) then
+      {Browse X}
+      {Browse Y}
+   end
+end

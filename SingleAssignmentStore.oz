@@ -4,7 +4,14 @@ SasIndex = {NewCell 0}
 Sas = {Dictionary.new}
 
 fun {RetrieveFromSAS X}
-   {Dictionary.get Sas X}
+   local Value in
+      Value = {Dictionary.get Sas X}
+      case Value
+      of refrence(Key) then {RetrieveFromSAS Key}
+      else
+	 Value
+      end
+   end
 end
 
 proc {BindRefToKeyInSAS Key RefKey}
