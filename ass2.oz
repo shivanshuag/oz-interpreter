@@ -108,8 +108,7 @@ proc {ApplyProc X Args Env}
 	 of nil#nil then CalleeEnv
 	 [] '#'(ident(Var)|Formalr ident(Actual)|Actualr) then
 	    local NewEnv in
-	       {AdjoinAt CalleeEnv Var {AddKeyToSas} NewEnv}
-	       {Unify ident(Var) {RetrieveFromSAS CallerEnv.Actual} NewEnv}
+	       {AdjoinAt CalleeEnv Var CallerEnv.Actual NewEnv}
 	       {DeclareBind Formalr Actualr NewEnv CallerEnv}
 	    end
 	 [] '#'(ident(Var)|Formalr Actual|Actualr) then
@@ -181,7 +180,7 @@ end
 		%[conditional ident(y) [bind ident(z) literal(true)] [bind ident(z) literal(false)]]
 		%[match ident(x) [record literal(a) [[literal(f1) ident(y)] [literal(a) literal(v2)]]] [nop] [bind ident(z) literal(false)]]
 		[bind ident(x) [procedure [ident(a) ident(b)] [[bind ident(b) literal(procedure)] [nop]]]]
-		[apply ident(x) literal(1) literal(procedure)]
+		[apply ident(x) ident(y) literal(procedure)]
 	       ]
 	      ]
 	     ]
@@ -194,13 +193,3 @@ end
 %{Interpret [[localvar ident(x)[localvar ident(y)[[bind ident(x) [record literal(a)
 %[[literal(feature1) literal(10)]]]]]]]]}
 
-
-local A B C in
-   A = [1 2 3]
-   B = [a b c]
-   case '#'(A B)
-   of '#'(X|Xr Y|Yr) then
-      {Browse X}
-      {Browse Y}
-   end
-end
